@@ -3,7 +3,7 @@ import SwiftUI
 @MainActor
 final class Workspace: ObservableObject {
     @Published var question = ""
-    @Published private(set) var current: Brief?
+    @Published private(set) var current: Brief? = Samples.examples.first?.brief
     @Published private(set) var recent: [Brief] = []
     @Published private(set) var keys = ResearchKeys.load()
     @Published private(set) var stage: ResearchStage?
@@ -72,25 +72,43 @@ final class Workspace: ObservableObject {
         guard !query.isEmpty, stage == nil else { return }
         let prior = input == nil ? context : nil
         let credentials = keys
-        if !canResearch, Samples.matching(query) == nil {
+        let matchedSample = Samples.matching(query)
+        if !canResearch, matchedSample == nil {
             error = ResearchFailure.sampleUnavailable.localizedDescription
             return
         }
         error = nil
         pendingQuestion = query
-        stage = .searching
+        stage = .intentDispatch
         let service = ResearchService()
 
         task = Task {
             do {
                 let result: Brief
-                if #available(macOS 26.0, *) {
+                if let sample = matchedSample, !credentials.isConfigured {
+                    stage = .headlessSearch(sample.generatedQueries)
+                    try await Task.sleep(for: .milliseconds(250))
+                    foundSources = sample.sources
+                    stage = .domDistillation(sources: sample.sources.count)
+                    try await Task.sleep(for: .milliseconds(250))
+                    stage = .mapReduceSynthesis(mapped: sample.sources.count, total: sample.sources.count)
+                    for count in 1...sample.cards.count {
+                        try Task.checkCancellation()
+                        streamingCards = Array(sample.cards.prefix(count))
+                        try await Task.sleep(for: .milliseconds(140))
+                    }
+                    result = sample
+                } else if #available(macOS 26.0, *) {
                     result = try await LocalResearch().run(
-                        question: query, prior: prior,
+                        question: query,
+                        prior: prior,
+                        stageChanged: { nextStage in
+                            guard !Task.isCancelled else { return }
+                            self.stage = nextStage
+                        },
                         sourcesChanged: { sources in
                             guard !Task.isCancelled else { return }
                             self.foundSources = sources
-                            self.stage = .summarizing
                         },
                         cardsChanged: { cards in
                             guard !Task.isCancelled else { return }
@@ -98,17 +116,12 @@ final class Workspace: ObservableObject {
                         }
                     )
                 } else if credentials.isConfigured {
+                    stage = .searching
                     let sources = try await service.search(query, following: prior, keys: credentials)
                     try Task.checkCancellation()
                     foundSources = sources
                     stage = .summarizing
                     result = try await service.summarize(query, following: prior, sources: sources, keys: credentials)
-                } else if let sample = Samples.matching(query) {
-                    try await Task.sleep(for: .milliseconds(350))
-                    foundSources = sample.sources
-                    stage = .summarizing
-                    try await Task.sleep(for: .milliseconds(350))
-                    result = sample
                 } else {
                     throw ResearchFailure.sampleUnavailable
                 }
@@ -132,3 +145,4 @@ final class Workspace: ObservableObject {
         }
     }
 }
+

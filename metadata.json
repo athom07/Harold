@@ -1,0 +1,10 @@
+{
+  "name": "Harold — Intent-Driven Web Browser",
+  "description": "Zero-chrome, intent-driven web browser inspired by HAL 9000 that autonomously searches the live web, distills pages with Readability.js, and streams bespoke Bento Grids on-device.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

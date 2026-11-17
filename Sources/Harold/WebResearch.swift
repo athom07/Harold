@@ -64,10 +64,14 @@ final class ResearchPage: NSObject, WKNavigationDelegate {
         let readability = try String(contentsOf: resource, encoding: .utf8)
         let script = readability + """
         ;(() => {
+          const rawBytes = document.documentElement ? document.documentElement.outerHTML.length : 0;
           const article = new Readability(document.cloneNode(true)).parse();
           if (!article) return null;
+          const words = article.textContent.trim().split(/\\s+/).slice(0, 1500);
           return {title: article.title || document.title,
-                  text: article.textContent.split(/\\s+/).slice(0, 1500).join(' '),
+                  text: words.join(' '),
+                  wordCount: String(words.length),
+                  rawBytes: String(rawBytes),
                   url: location.href};
         })();
         """
@@ -76,7 +80,16 @@ final class ResearchPage: NSObject, WKNavigationDelegate {
               let finalURL = URL(string: result["url"] ?? ""), ["http", "https"].contains(finalURL.scheme ?? "") else {
             throw ResearchFailure.noSources
         }
-        return Source(id: id, title: result["title"] ?? url.host ?? "Source", url: finalURL, excerpt: text)
+        let rawBytes = Int(result["rawBytes"] ?? "0") ?? 0
+        let wordCount = Int(result["wordCount"] ?? "0") ?? text.split(whereSeparator: \.isWhitespace).count
+        return Source(
+            id: id,
+            title: result["title"] ?? url.host ?? "Source",
+            url: finalURL,
+            excerpt: text,
+            rawByteCount: rawBytes,
+            distilledWordCount: wordCount
+        )
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { finish(.success(())) }
@@ -97,12 +110,20 @@ final class ResearchPage: NSObject, WKNavigationDelegate {
 @MainActor
 struct LocalResearch {
     func run(
-        question: String, prior: Brief?,
+        question: String,
+        prior: Brief?,
+        stageChanged: @escaping (ResearchStage) -> Void,
         sourcesChanged: @escaping ([Source]) -> Void,
         cardsChanged: @escaping ([ResearchCard]) -> Void
     ) async throws -> Brief {
         let model: any ResearchLanguageModel = AppleResearchModel()
+
+        // Stage 1: Intent & Query Dispatch
+        stageChanged(.intentDispatch)
         let queries = try await model.searchQueries(for: question, prior: prior)
+
+        // Stage 2: Headless Search Resolution via local WKWebView
+        stageChanged(.headlessSearch(queries))
         var urls: [URL] = []
         for query in queries {
             let results = try await ResearchPage().search(query)
@@ -110,8 +131,10 @@ struct LocalResearch {
         }
         guard !urls.isEmpty else { throw ResearchFailure.noSources }
         let targets = Array(urls.prefix(5))
+
+        // Stage 3 & 4: Staggered Background Fetching (3 workers, 400ms stagger) + Readability.js DOM Distillation
+        stageChanged(.backgroundFetching(loaded: 0, total: targets.count))
         var sources: [Source] = []
-        // Three workers at a time, with staggered starts. Each view uses Harold's cookie store.
         for start in stride(from: 0, to: targets.count, by: 3) {
             try await withThrowingTaskGroup(of: Source?.self) { group in
                 for index in start..<min(start + 3, targets.count) {
@@ -131,21 +154,63 @@ struct LocalResearch {
                         sources.append(source)
                         sources.sort { $0.id < $1.id }
                         sourcesChanged(sources)
+                        stageChanged(.backgroundFetching(loaded: sources.count, total: targets.count))
                     }
                 }
             }
         }
         guard !sources.isEmpty else { throw ResearchFailure.noSources }
+        stageChanged(.domDistillation(sources: sources.count))
+
+        // Stage 5: Two-Stage Map-Reduce Synthesis
         var facts: [SourcedFacts] = []
-        for source in sources {
+        for (idx, source) in sources.enumerated() {
             try Task.checkCancellation()
+            stageChanged(.mapReduceSynthesis(mapped: idx, total: sources.count))
             let fact = try await model.facts(for: source, question: question)
-            if !fact.text.isEmpty { facts.append(fact) }
+            if !fact.text.isEmpty {
+                var enriched = source
+                enriched.mappedClaims = fact.claims
+                enriched.mappedAdvantages = fact.advantages
+                enriched.mappedDisadvantages = fact.disadvantages
+                if let replaceIndex = sources.firstIndex(where: { $0.id == source.id }) {
+                    sources[replaceIndex] = enriched
+                    sourcesChanged(sources)
+                }
+                facts.append(SourcedFacts(
+                    source: enriched,
+                    claims: fact.claims,
+                    advantages: fact.advantages,
+                    disadvantages: fact.disadvantages,
+                    text: fact.text
+                ))
+            }
         }
         guard !facts.isEmpty else { throw ResearchFailure.noSources }
-        let cards = try await model.assemble(question: question, facts: facts, update: cardsChanged)
-        return Brief(query: question, cards: cards, sources: facts.map {
-            Source(id: $0.source.id, title: $0.source.title, url: $0.source.url, excerpt: "")
-        }, isSample: false)
+        stageChanged(.mapReduceSynthesis(mapped: facts.count, total: sources.count))
+        let cards = try await model.assemble(question: question, prior: prior, facts: facts, update: cardsChanged)
+        return Brief(
+            query: question,
+            generatedQueries: queries,
+            cards: cards,
+            sources: facts.map {
+                var clean = $0.source
+                clean = Source(
+                    id: clean.id,
+                    title: clean.title,
+                    url: clean.url,
+                    excerpt: clean.excerpt,
+                    rawByteCount: clean.rawByteCount,
+                    distilledWordCount: clean.distilledWordCount,
+                    mappedClaims: clean.mappedClaims,
+                    mappedAdvantages: clean.mappedAdvantages,
+                    mappedDisadvantages: clean.mappedDisadvantages
+                )
+                return clean
+            },
+            isSample: false,
+            engineLabel: model.displayName
+        )
     }
 }
+
