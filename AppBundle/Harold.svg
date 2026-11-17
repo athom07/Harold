@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="tile" x2="0.86" y2="1">
+      <stop stop-color="#278488"/>
+      <stop offset="0.52" stop-color="#155A65"/>
+      <stop offset="1" stop-color="#073C43"/>
+    </linearGradient>
+    <linearGradient id="fold" x2="1" y2="0.8">
+      <stop stop-color="#04363D"/>
+      <stop offset="1" stop-color="#0B4A50"/>
+    </linearGradient>
+    <linearGradient id="spark" x2="0.5" y2="1">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#C5DFDB"/>
+    </linearGradient>
+    <clipPath id="tileBounds">
+      <rect x="96" y="87" width="832" height="832" rx="193"/>
+    </clipPath>
+  </defs>
+  <rect x="96" y="100" width="832" height="832" rx="193" fill="#092F34" opacity="0.25"/>
+  <g clip-path="url(#tileBounds)">
+    <rect x="96" y="87" width="832" height="832" fill="url(#tile)"/>
+    <path d="M96 87L928 919H96Z" fill="url(#fold)"/>
+    <path d="M96 87L928 919" stroke="#81BCC0" stroke-opacity="0.30" stroke-width="5"/>
+  </g>
+  <path d="M512 288Q551 463 695 503Q551 543 512 718Q473 543 329 503Q473 463 512 288Z" fill="url(#spark)"/>
+</svg>
