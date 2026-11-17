@@ -1,27 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="tile" x2="0.86" y2="1">
-      <stop stop-color="#278488"/>
-      <stop offset="0.52" stop-color="#155A65"/>
-      <stop offset="1" stop-color="#073C43"/>
+    <linearGradient id="housing" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#303036"/>
+      <stop offset=".46" stop-color="#16161b"/>
+      <stop offset="1" stop-color="#070709"/>
     </linearGradient>
-    <linearGradient id="fold" x2="1" y2="0.8">
-      <stop stop-color="#04363D"/>
-      <stop offset="1" stop-color="#0B4A50"/>
+    <linearGradient id="rim" x1=".25" y1="0" x2=".76" y2="1">
+      <stop stop-color="#a2a2a8"/>
+      <stop offset=".27" stop-color="#48474c"/>
+      <stop offset=".52" stop-color="#17171b"/>
+      <stop offset=".84" stop-color="#68636a"/>
+      <stop offset="1" stop-color="#252429"/>
     </linearGradient>
-    <linearGradient id="spark" x2="0.5" y2="1">
-      <stop stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#C5DFDB"/>
+    <radialGradient id="lens">
+      <stop stop-color="#ffb345"/>
+      <stop offset=".1" stop-color="#ff5930"/>
+      <stop offset=".26" stop-color="#ef1c13"/>
+      <stop offset=".46" stop-color="#ab080d"/>
+      <stop offset=".76" stop-color="#430308"/>
+      <stop offset="1" stop-color="#190609"/>
+    </radialGradient>
+    <radialGradient id="pupil">
+      <stop stop-color="#fff6b5"/>
+      <stop offset=".24" stop-color="#ffcc62"/>
+      <stop offset=".64" stop-color="#ff5326"/>
+      <stop offset="1" stop-color="#ff2419" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="reflection" x1="0" y1="0" x2=".7" y2="1">
+      <stop stop-color="#ffcac5" stop-opacity=".65"/>
+      <stop offset="1" stop-color="#ff726a" stop-opacity="0"/>
     </linearGradient>
-    <clipPath id="tileBounds">
-      <rect x="96" y="87" width="832" height="832" rx="193"/>
-    </clipPath>
   </defs>
-  <rect x="96" y="100" width="832" height="832" rx="193" fill="#092F34" opacity="0.25"/>
-  <g clip-path="url(#tileBounds)">
-    <rect x="96" y="87" width="832" height="832" fill="url(#tile)"/>
-    <path d="M96 87L928 919H96Z" fill="url(#fold)"/>
-    <path d="M96 87L928 919" stroke="#81BCC0" stroke-opacity="0.30" stroke-width="5"/>
-  </g>
-  <path d="M512 288Q551 463 695 503Q551 543 512 718Q473 543 329 503Q473 463 512 288Z" fill="url(#spark)"/>
+  <rect x="96" y="105" width="832" height="830" rx="188" fill="#08080a" opacity=".28"/>
+  <rect x="96" y="86" width="832" height="832" rx="188" fill="url(#housing)" stroke="#49494f" stroke-width="5"/>
+  <rect x="114" y="104" width="796" height="796" rx="170" fill="none" stroke="#060608" stroke-width="4"/>
+  <circle cx="512" cy="502" r="313" fill="#0a0a0c" stroke="#060607" stroke-width="11"/>
+  <circle cx="512" cy="502" r="290" fill="#201c20" stroke="url(#rim)" stroke-width="25"/>
+  <circle cx="512" cy="502" r="264" fill="#10090c" stroke="#4c3137" stroke-width="4"/>
+  <circle cx="512" cy="502" r="245" fill="url(#lens)" stroke="#200a10" stroke-width="7"/>
+  <circle cx="512" cy="502" r="205" fill="none" stroke="#fc483b" stroke-opacity=".20" stroke-width="3"/>
+  <circle cx="512" cy="502" r="161" fill="none" stroke="#ff5941" stroke-opacity=".18" stroke-width="2"/>
+  <circle cx="512" cy="502" r="94" fill="url(#pupil)"/>
+  <path d="M338 434C360 346 450 286 543 293C567 295 588 303 603 310C508 318 409 357 338 434Z" fill="url(#reflection)"/>
+  <path d="M555 716C621 696 684 651 720 591" fill="none" stroke="#fc6859" stroke-opacity=".34" stroke-width="7" stroke-linecap="round"/>
 </svg>

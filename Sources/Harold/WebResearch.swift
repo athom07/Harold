@@ -36,13 +36,27 @@ final class ResearchPage: NSObject, WKNavigationDelegate {
     }
 
     func search(_ query: String) async throws -> [URL] {
-        var url = URLComponents(string: "https://www.google.com/search")!
+        if let primary = try? await search(query, usingDuckDuckGo: false), !primary.isEmpty {
+            return primary
+        }
+        try Task.checkCancellation()
+        return try await search(query, usingDuckDuckGo: true)
+    }
+
+    private func search(_ query: String, usingDuckDuckGo: Bool) async throws -> [URL] {
+        let endpoint = usingDuckDuckGo ? "https://html.duckduckgo.com/html/" : "https://www.google.com/search"
+        var url = URLComponents(string: endpoint)!
         url.queryItems = [.init(name: "q", value: query)]
         try await load(url.url!)
         let script = """
-        Array.from(document.querySelectorAll('a')).filter(a => a.querySelector('h3')).map(a => {
-          let u = new URL(a.href, location.href);
-          if (u.pathname === '/url') return u.searchParams.get('q') || u.searchParams.get('url');
+        Array.from(document.querySelectorAll('a.result__a, a:has(h3)')).map(a => {
+          const u = new URL(a.href, location.href);
+          if (u.hostname.endsWith('.duckduckgo.com') && u.pathname === '/l/') {
+            return u.searchParams.get('uddg');
+          }
+          if (u.hostname === 'www.google.com' && u.pathname === '/url') {
+            return u.searchParams.get('q') || u.searchParams.get('url');
+          }
           return u.href;
         }).filter(Boolean)
         """
@@ -50,7 +64,7 @@ final class ResearchPage: NSObject, WKNavigationDelegate {
         var seen = Set<URL>()
         return links.compactMap { URL(string: $0) }.filter {
             guard let scheme = $0.scheme, ["https", "http"].contains(scheme),
-                  let host = $0.host, !host.hasSuffix("google.com"),
+                  let host = $0.host, host != "www.google.com", host != "html.duckduckgo.com", host != "duckduckgo.com",
                   $0.user == nil, $0.password == nil else { return false }
             return seen.insert($0).inserted
         }.prefix(5).map { $0 }
@@ -120,13 +134,16 @@ struct LocalResearch {
 
         // Stage 1: Intent & Query Dispatch
         stageChanged(.intentDispatch)
-        let queries = try await model.searchQueries(for: question, prior: prior)
+        let generated = (try? await model.searchQueries(for: question, prior: prior)) ?? []
+        try Task.checkCancellation()
+        let queries = generated.isEmpty ? [String(question.prefix(300))] : generated
 
         // Stage 2: Headless Search Resolution via local WKWebView
         stageChanged(.headlessSearch(queries))
         var urls: [URL] = []
         for query in queries {
-            let results = try await ResearchPage().search(query)
+            let results = (try? await ResearchPage().search(query)) ?? []
+            try Task.checkCancellation()
             for url in results where !urls.contains(url) { urls.append(url) }
         }
         guard !urls.isEmpty else { throw ResearchFailure.noSources }
@@ -167,7 +184,7 @@ struct LocalResearch {
         for (idx, source) in sources.enumerated() {
             try Task.checkCancellation()
             stageChanged(.mapReduceSynthesis(mapped: idx, total: sources.count))
-            let fact = try await model.facts(for: source, question: question)
+            guard let fact = try? await model.facts(for: source, question: question) else { continue }
             if !fact.text.isEmpty {
                 var enriched = source
                 enriched.mappedClaims = fact.claims
@@ -186,15 +203,26 @@ struct LocalResearch {
                 ))
             }
         }
-        guard !facts.isEmpty else { throw ResearchFailure.noSources }
+        try Task.checkCancellation()
         stageChanged(.mapReduceSynthesis(mapped: facts.count, total: sources.count))
-        let cards = try await model.assemble(question: question, prior: prior, facts: facts, update: cardsChanged)
+        let generatedCards: [ResearchCard]?
+        if facts.isEmpty {
+            generatedCards = nil
+        } else {
+            generatedCards = try? await model.assemble(question: question, prior: prior, facts: facts, update: cardsChanged)
+        }
+        try Task.checkCancellation()
+        let cards = generatedCards ?? [
+            ResearchCard(kind: .summary, title: "Summary unavailable",
+                         text: "The on-device model couldn’t complete a summary. Open the original sources below."),
+            ResearchCard(kind: .sources, title: "Original sources")
+        ]
         return Brief(
             query: question,
             generatedQueries: queries,
             cards: cards,
-            sources: facts.map {
-                var clean = $0.source
+            sources: sources.map { source in
+                var clean = source
                 clean = Source(
                     id: clean.id,
                     title: clean.title,

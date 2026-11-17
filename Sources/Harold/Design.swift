@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum Palette {
@@ -47,16 +48,22 @@ struct Surface: ViewModifier {
     var radius: CGFloat = 20
 
     func body(content: Content) -> some View {
-        content
-            .background {
-                RoundedRectangle(cornerRadius: radius)
-                    .fill(.regularMaterial)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: radius)
-                            .fill(fill.opacity(reduceTransparency ? 1 : 0.52))
-                    }
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        content.background {
+            if reduceTransparency {
+                shape.fill(fill)
+            } else if #available(macOS 26.0, *) {
+                shape.fill(fill.opacity(0.18))
+                    .glassEffect(.clear, in: shape)
+            } else {
+                shape.fill(.thinMaterial)
+                    .overlay { shape.fill(fill.opacity(0.22)) }
             }
-            .overlay { RoundedRectangle(cornerRadius: radius).strokeBorder(border).allowsHitTesting(false) }
+        }
+        .overlay {
+            shape.strokeBorder(border, lineWidth: 1)
+                .allowsHitTesting(false)
+        }
     }
 }
 
@@ -93,60 +100,72 @@ struct HoverButtonStyle: ButtonStyle {
     }
 }
 
-struct Spark: Shape {
-    func path(in rect: CGRect) -> Path {
-        let x = rect.midX
-        let y = rect.midY
-        let w = rect.width / 2
-        let h = rect.height / 2
-        var path = Path()
-        path.move(to: CGPoint(x: x, y: y - h))
-        path.addQuadCurve(to: CGPoint(x: x + w, y: y), control: CGPoint(x: x + w * 0.23, y: y - h * 0.20))
-        path.addQuadCurve(to: CGPoint(x: x, y: y + h), control: CGPoint(x: x + w * 0.23, y: y + h * 0.20))
-        path.addQuadCurve(to: CGPoint(x: x - w, y: y), control: CGPoint(x: x - w * 0.23, y: y + h * 0.20))
-        path.addQuadCurve(to: CGPoint(x: x, y: y - h), control: CGPoint(x: x - w * 0.23, y: y - h * 0.20))
-        path.closeSubpath()
-        return path
-    }
-}
-
 struct HaroldMark: View {
     var size: CGFloat
     var prominent = false
 
+    private static let icon = Bundle.main.url(forResource: "Harold", withExtension: "icns")
+        .flatMap { NSImage(contentsOf: $0) }
+
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: size * 0.23)
-        ZStack {
-            shape.fill(
-                LinearGradient(
-                    colors: [Palette.rgb(0x247D82), Palette.accent, Palette.rgb(0x05353B)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
+        Group {
+            if let icon = Self.icon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .scaleEffect(1.18)
+            } else {
+                Circle().fill(
+                    RadialGradient(colors: [.orange, .red, .black], center: .center,
+                                   startRadius: 0, endRadius: size / 2)
                 )
-            )
-            Canvas { context, size in
-                var fold = Path()
-                fold.move(to: .zero)
-                fold.addLine(to: CGPoint(x: size.width, y: size.height))
-                fold.addLine(to: CGPoint(x: 0, y: size.height))
-                fold.closeSubpath()
-                context.fill(fold, with: .color(Palette.rgb(0x043A41).opacity(0.70)))
             }
-            Spark()
-                .fill(LinearGradient(colors: [.white, Palette.mint], startPoint: .top, endPoint: .bottom))
-                .frame(width: size * 0.43, height: size * 0.49)
         }
         .frame(width: size, height: size)
-        .clipShape(shape)
-        .overlay { shape.strokeBorder(.white.opacity(0.21)).allowsHitTesting(false) }
-        .shadow(color: Palette.accent.opacity(prominent ? 0.23 : 0.10), radius: prominent ? 20 : 5, y: prominent ? 9 : 2)
+        .shadow(color: .black.opacity(prominent ? 0.24 : 0.14), radius: prominent ? 13 : 4, y: 3)
         .accessibilityHidden(true)
+    }
+}
+
+struct WindowGlass: NSViewRepresentable {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func makeNSView(context: Context) -> Backdrop {
+        let view = Backdrop()
+        view.material = .underWindowBackground
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: Backdrop, context: Context) {
+        view.reduceTransparency = reduceTransparency
+        view.updateWindow()
+    }
+
+    final class Backdrop: NSVisualEffectView {
+        var reduceTransparency = false
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            updateWindow()
+        }
+
+        func updateWindow() {
+            window?.isOpaque = reduceTransparency
+            window?.backgroundColor = reduceTransparency ? NSColor(Palette.background) : .clear
+            alphaValue = reduceTransparency ? 0 : 0.38
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }
 
 struct WorkspaceBackdrop: View {
     var body: some View {
         RadialGradient(
-            colors: [Palette.mist, Palette.background],
+            colors: [Palette.mist.opacity(0.45), Palette.background.opacity(0.12)],
             center: UnitPoint(x: 0.50, y: 0.19), startRadius: 15, endRadius: 440
         )
         .mask {

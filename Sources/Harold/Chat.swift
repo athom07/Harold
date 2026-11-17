@@ -68,6 +68,7 @@ struct ChatSidebar: View {
     let onClose: () -> Void
     let onSettings: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         VStack(spacing: 0) {
@@ -159,7 +160,7 @@ struct ChatSidebar: View {
                 .padding(11)
             }
         }
-        .background(Palette.sidebar)
+        .background(Palette.sidebar.opacity(reduceTransparency ? 1 : 0.24))
     }
 
     private func bubble(_ message: ChatMessage) -> some View {

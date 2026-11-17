@@ -34,12 +34,13 @@ struct WorkspaceView: View {
     @State private var showingSettings = false
     @FocusState private var questionFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         HStack(spacing: 0) {
             sidebar
                 .frame(width: 215)
-                .background(.regularMaterial)
+                .background(Palette.sidebar.opacity(reduceTransparency ? 1 : 0.18))
             Rectangle().fill(Palette.border).frame(width: 1)
             VStack(spacing: 0) {
                 ZStack {
@@ -58,7 +59,6 @@ struct WorkspaceView: View {
                     }
                 }
             }
-            .background(Palette.background)
             if showingChat {
                 Rectangle().fill(Palette.border).frame(width: 1)
                 ChatSidebar(
@@ -69,6 +69,11 @@ struct WorkspaceView: View {
             }
         }
         .frame(minWidth: showingChat ? 1_050 : 760, minHeight: 580)
+        .background {
+            Palette.background.opacity(reduceTransparency ? 1 : 0.54)
+                .background { WindowGlass() }
+                .ignoresSafeArea()
+        }
         .foregroundStyle(Palette.text)
         .tint(Palette.accent)
         .sheet(isPresented: $showingSettings) {
@@ -299,7 +304,7 @@ struct WorkspaceView: View {
         }
         .padding(.horizontal, 24)
         .frame(height: 49)
-        .background(.regularMaterial)
+        .background(Palette.sidebar.opacity(reduceTransparency ? 1 : 0.18))
         .overlay(alignment: .bottom) { Rectangle().fill(Palette.border).frame(height: 1) }
     }
 
@@ -382,7 +387,7 @@ struct WorkspaceView: View {
                         .accessibilityHidden(true)
                     TextField(
                         "Question or website", text: $workspace.question,
-                        prompt: Text(voice.listening ? "Listening…" : "Search or enter a website").foregroundStyle(Palette.muted)
+                        prompt: Text(voice.listening ? "Listening…" : "Search the web or enter a website").foregroundStyle(Palette.muted)
                     )
                     .font(.harold(size: 16, weight: .medium))
                     .textFieldStyle(.plain)
@@ -438,6 +443,17 @@ struct WorkspaceView: View {
                     .padding(.horizontal, 12).padding(.vertical, 7)
                     .modifier(Surface(fill: Palette.peach, border: .clear, radius: 12))
                     .accessibilityAddTraits(.updatesFrequently)
+                if workspace.error != nil && !workspace.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button("Open web results", systemImage: "magnifyingglass") {
+                        var search = URLComponents(string: "https://www.google.com/search")!
+                        search.queryItems = [.init(name: "q", value: workspace.question)]
+                        if let url = search.url { _ = openWebsite(url) }
+                    }
+                    .font(.harold(size: 13, weight: .bold))
+                    .foregroundStyle(Palette.accent)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .modifier(Surface(radius: 14))
+                }
             }
 
             HStack(spacing: 7) {
