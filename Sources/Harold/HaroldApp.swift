@@ -92,7 +92,10 @@ struct WorkspaceView: View {
                     return .handled
                 })
         }
-        .environment(\.openURL, OpenURLAction { openWebsite($0) ? .handled : .discarded })
+        .environment(\.openURL, OpenURLAction { openWebsite($0, inNewTab: true) ? .handled : .discarded })
+        .onOpenURL { incomingURL in
+            _ = openExternalLink(incomingURL)
+        }
         .onChange(of: workspace.current?.id) { _, _ in voice.stopSpeech() }
         .onChange(of: workspace.stage) { _, stage in
             if stage != nil {
@@ -154,22 +157,8 @@ struct WorkspaceView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 6) {
-                    if !workspace.recent.isEmpty {
-                        SmallLabel(text: "Recent")
-                            .padding(.horizontal, 7).padding(.bottom, 4)
-                        ForEach(workspace.recent) { brief in
-                            sidebarItem(brief.query, icon: "clock", brief: brief)
-                        }
-                        Spacer().frame(height: 12)
-                    }
-                    SmallLabel(text: "Sample briefs")
-                        .padding(.horizontal, 7).padding(.bottom, 4)
-                    ForEach(Samples.examples) { sample in
-                        sidebarItem(sample.shortcut, icon: sample.icon, brief: sample.brief)
-                    }
-
                     SmallLabel(text: "Bookmarks")
-                        .padding(.horizontal, 7).padding(.top, 17).padding(.bottom, 4)
+                        .padding(.horizontal, 7).padding(.bottom, 4)
                     if bookmarks.entries.isEmpty {
                         Text("Star a page to save it here.")
                             .font(.harold(size: 12))
@@ -180,10 +169,18 @@ struct WorkspaceView: View {
                             bookmarkRow(bookmark)
                         }
                     }
+
+                    if !workspace.recent.isEmpty {
+                        SmallLabel(text: "Recent")
+                            .padding(.horizontal, 7).padding(.top, 17).padding(.bottom, 4)
+                        ForEach(workspace.recent) { brief in
+                            sidebarItem(brief.query, icon: "clock", brief: brief)
+                        }
+                    }
                 }
             }
             .contentMargins(.vertical, 0)
-            .padding(.top, 27)
+            .padding(.top, 20)
 
             Spacer(minLength: 12)
             Divider().overlay(Palette.border)
@@ -415,6 +412,19 @@ struct WorkspaceView: View {
                     ))
 
                     Button {
+                        openWebSearchImmediately()
+                    } label: {
+                        Label("Web Results", systemImage: "globe")
+                            .font(.harold(size: 12, weight: .bold))
+                            .foregroundStyle(Palette.accent)
+                            .padding(.horizontal, 10)
+                            .frame(height: 35)
+                    }
+                    .help("Open web search results immediately alongside AI brief")
+                    .disabled(workspace.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .buttonStyle(HoverButtonStyle(fill: Palette.mint, radius: 17.5))
+
+                    Button {
                         if workspace.stage == nil { submit() } else { workspace.cancel() }
                     } label: {
                         Image(systemName: workspace.stage == nil ? "arrow.right" : "stop.fill")
@@ -445,9 +455,7 @@ struct WorkspaceView: View {
                     .accessibilityAddTraits(.updatesFrequently)
                 if workspace.error != nil && !workspace.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Button("Open web results", systemImage: "magnifyingglass") {
-                        var search = URLComponents(string: "https://www.google.com/search")!
-                        search.queryItems = [.init(name: "q", value: workspace.question)]
-                        if let url = search.url { _ = openWebsite(url) }
+                        openWebSearchImmediately()
                     }
                     .font(.harold(size: 13, weight: .bold))
                     .foregroundStyle(Palette.accent)
@@ -455,41 +463,55 @@ struct WorkspaceView: View {
                     .modifier(Surface(radius: 14))
                 }
             }
-
-            HStack(spacing: 7) {
-                ForEach(Samples.examples) { sample in
-                    Button {
-                        voice.error = nil
-                        workspace.open(sample.brief)
-                    } label: {
-                        Label(sample.shortcut, systemImage: sample.icon)
-                            .font(.harold(size: 12, weight: .bold))
-                            .foregroundStyle(Palette.secondary)
-                            .padding(.horizontal, 10).frame(height: 29)
-                    }
-                    .buttonStyle(HoverButtonStyle(fill: Palette.raised, radius: 15))
-                    .disabled(workspace.stage != nil)
-                    .help(sample.brief.query)
-                }
-            }
-            .padding(.bottom, 2)
         }
     }
 
     private func submit() {
         voice.error = nil
         let text = workspace.question.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let destination = Browser.address(from: text), openWebsite(destination) {
+        if let destination = Browser.address(from: text), openWebsite(destination, inNewTab: true) {
             workspace.question = ""
         } else if Browser.hasScheme(text) {
             invalidWebsite = true
         } else {
+            _ = browser.openSearchResults(for: text, inNewTab: true)
             workspace.submit()
         }
     }
 
-    private func openWebsite(_ url: URL) -> Bool {
-        guard browser.open(url) else { return false }
+    private func openWebSearchImmediately() {
+        let text = workspace.question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        if let destination = Browser.address(from: text) {
+            _ = openWebsite(destination, inNewTab: true)
+        } else {
+            _ = browser.openSearchResults(for: text, inNewTab: true)
+            voice.stopListening()
+            questionFocused = false
+            showingBrowser = true
+            if workspace.stage == nil {
+                workspace.submit(text)
+            }
+        }
+    }
+
+    private func openExternalLink(_ incomingURL: URL) -> Bool {
+        if incomingURL.scheme?.lowercased() == "harold" {
+            if let comps = URLComponents(url: incomingURL, resolvingAgainstBaseURL: false),
+               let target = comps.queryItems?.first(where: { $0.name == "url" || $0.name == "q" })?.value {
+                if let url = Browser.address(from: target) {
+                    return openWebsite(url, inNewTab: true)
+                }
+                _ = browser.openSearchResults(for: target, inNewTab: true)
+                showingBrowser = true
+                return true
+            }
+        }
+        return openWebsite(incomingURL, inNewTab: true)
+    }
+
+    private func openWebsite(_ url: URL, inNewTab: Bool = false) -> Bool {
+        guard browser.open(url, inNewTab: inNewTab) else { return false }
         voice.stopListening()
         questionFocused = false
         showingBrowser = true

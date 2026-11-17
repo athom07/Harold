@@ -24,10 +24,40 @@
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Harold uses your camera when a website requests video permission.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Harold uses your microphone when you dictate a research question.</string>
+    <string>Harold uses your microphone when you dictate a research question or when a website requests audio permission.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Harold uses Apple speech recognition to transcribe your research question.</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>Web site URL</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>http</string>
+                <string>https</string>
+                <string>harold</string>
+            </array>
+        </dict>
+    </array>
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>public.html</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.text</string>
+            </array>
+        </dict>
+    </array>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>

@@ -39,5 +39,19 @@ cp "$bin_path/Harold" "$bundle/Contents/MacOS/Harold"
 cp AppBundle/Info.plist "$bundle/Contents/Info.plist"
 cp -R "$bin_path/Harold_Harold.bundle" "$bundle/Contents/Resources/"
 cp AppBundle/Harold.icns "$bundle/Contents/Resources/Harold.icns"
-/usr/bin/codesign --force --sign - "$bundle"
+
+sign_identity="${HAROLD_CODESIGN_IDENTITY:--}"
+if [[ "$sign_identity" == "-" ]]; then
+    /usr/bin/codesign --force --deep --sign - "$bundle"
+else
+    /usr/bin/codesign --force --deep --options runtime --timestamp --sign "$sign_identity" "$bundle"
+fi
+
+if [[ -n "${HAROLD_NOTARY_PROFILE:-}" ]]; then
+    zip_path="$PWD/dist/Harold.zip"
+    /usr/bin/ditto -c -k --keepParent "$bundle" "$zip_path"
+    xcrun notarytool submit "$zip_path" --keychain-profile "$HAROLD_NOTARY_PROFILE" --wait
+    xcrun stapler staple "$bundle"
+fi
+
 echo "$bundle"

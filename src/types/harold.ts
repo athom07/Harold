@@ -100,3 +100,90 @@ export interface BookmarkEntry {
   domain: string;
   savedAt: string;
 }
+
+export type BrowserPageKind = 'search_results' | 'article' | 'pdf' | 'signin' | 'webapp';
+
+export interface WebSearchResultItem {
+  id: number;
+  title: string;
+  url: string;
+  domain: string;
+  snippet: string;
+  publishedDate?: string;
+  hasPdfAttachment?: boolean;
+  pdfFilename?: string;
+  requiresSignIn?: boolean;
+  extractionStatus: 'distilled' | 'extraction_failed_usable' | 'live';
+}
+
+export interface BrowserPageTab {
+  id: string;
+  url: string;
+  title: string;
+  domain: string;
+  kind: BrowserPageKind;
+  searchQuery?: string;
+  searchResults?: WebSearchResultItem[];
+  source?: ResearchSource;
+  historyBackStack: string[];
+  historyForwardStack: string[];
+  openedFromTabId?: string;
+  isPopupWindow?: boolean;
+  createdAt: string;
+  lastVisitedAt: string;
+  extractionNote?: string;
+  uploadedFiles?: { name: string; sizeBytes: number; uploadedAt: string }[];
+}
+
+export interface BrowserHistoryItem {
+  id: string;
+  url: string;
+  title: string;
+  domain: string;
+  visitedAt: string;
+  kind: BrowserPageKind;
+}
+
+export interface BrowserDownloadItem {
+  id: string;
+  filename: string;
+  sourceUrl: string;
+  domain: string;
+  sizeBytes: number;
+  mimeType: string;
+  status: 'completed' | 'downloading';
+  savedPath: string;
+  downloadedAt: string;
+}
+
+export interface SiteAuthSession {
+  domain: string;
+  accountEmail: string;
+  status: 'signed_in' | 'expired' | 'signed_out';
+  cookieName: string;
+  signedInAt: string;
+  expiresAt: string;
+}
+
+export type SitePermissionType = 'camera' | 'microphone' | 'notifications' | 'geolocation';
+
+export interface SitePermissionRecord {
+  domain: string;
+  permission: SitePermissionType;
+  decision: 'allow' | 'deny' | 'prompt';
+  updatedAt: string;
+}
+
+export interface DefaultBrowserConfig {
+  isDefaultBrowser: boolean;
+  registeredSchemes: string[];
+  bundleIdentifier: string;
+  codeSignatureStatus: 'Developer ID Application (Signed & Notarized)' | 'Ad-Hoc Local Build';
+  lastExternalLinkOpened?: {
+    sourceApp: 'Mail' | 'Messages' | 'Finder' | 'Terminal';
+    url: string;
+    appStateWhenClicked: 'running' | 'closed_cold_launch';
+    openedAt: string;
+  };
+}
+

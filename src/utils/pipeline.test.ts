@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   applyConversationalRefinement,
   buildSearchQueries,
+  buildWebSearchResults,
   compressArticleProse,
   extractDomain,
   extractSourceFactsFromText,
@@ -10,6 +11,14 @@ import {
   validateAndGroundBentoCards,
 } from './pipeline';
 import { ResearchBrief, ResearchSource } from '../types/harold';
+
+test('buildWebSearchResults produces immediate web results including PDF and extraction-resilient entries', () => {
+  const results = buildWebSearchResults('Mechanical keyboards wireless latency');
+  assert.ok(results.length >= 4);
+  assert.ok(results.some((r) => r.hasPdfAttachment));
+  assert.ok(results.some((r) => r.extractionStatus === 'extraction_failed_usable'));
+  assert.ok(results.every((r) => r.domain && r.url.startsWith('https://')));
+});
 
 test('parseDirectUrl distinguishes direct URLs from natural language intents', () => {
   assert.equal(parseDirectUrl('https://www.nasa.gov/artemis'), 'https://www.nasa.gov/artemis');

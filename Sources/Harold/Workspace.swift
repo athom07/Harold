@@ -3,7 +3,7 @@ import SwiftUI
 @MainActor
 final class Workspace: ObservableObject {
     @Published var question = ""
-    @Published private(set) var current: Brief? = Samples.examples.first?.brief
+    @Published private(set) var current: Brief? = nil
     @Published private(set) var recent: [Brief] = []
     @Published private(set) var keys = ResearchKeys.load()
     @Published private(set) var stage: ResearchStage?

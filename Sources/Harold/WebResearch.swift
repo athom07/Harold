@@ -176,7 +176,18 @@ struct LocalResearch {
                 }
             }
         }
-        guard !sources.isEmpty else { throw ResearchFailure.noSources }
+        if sources.isEmpty {
+            // Dependable search fallback: preserve raw organic URLs even if Readability.js extraction failed
+            sources = targets.enumerated().map { idx, targetURL in
+                Source(
+                    id: idx + 1,
+                    title: targetURL.host ?? targetURL.absoluteString,
+                    url: targetURL,
+                    excerpt: "Article extraction was unavailable for \(targetURL.host ?? "this page"). Open the original page directly in Harold's browser."
+                )
+            }
+            sourcesChanged(sources)
+        }
         stageChanged(.domDistillation(sources: sources.count))
 
         // Stage 5: Two-Stage Map-Reduce Synthesis
